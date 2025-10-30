@@ -1,10 +1,10 @@
-# --- Make sure to run this cell first: !pip install dash dash-bootstrap-components gunicorn pandas scikit-learn ---
+# --- Make sure to run this cell first: !pip install dash dash-bootstrap-components gunicorn pandas ---
 
 from dash import Dash, dcc, html, Input, Output, State, no_update
 import dash_bootstrap_components as dbc
 import plotly.graph_objects as go
 import pandas as pd
-from sklearn.preprocessing import MinMaxScaler
+import os # <-- Import the OS module
 
 # --- 1. Initialize the Dash App with a modern theme ---
 app = Dash(__name__, external_stylesheets=[dbc.themes.FLATLY])
@@ -12,8 +12,14 @@ server = app.server
 app.title = "Global Mineral Dashboard"
 
 # --- 2. Load Data and Define Layout ---
+
+# Build an absolute path to the CSV file relative to the app.py script
+# This ensures the app can find the file in Vercel's environment
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DATA_FILE = os.path.join(BASE_DIR, 'final 1.csv')
+
 try:
-    df = pd.read_csv('final 1.csv')
+    df = pd.read_csv(DATA_FILE) # <-- Use the full path
 
     # --- Data Cleaning and Preparation ---
     df['Year'] = pd.to_numeric(df['Year'], errors='coerce').dropna().astype(int)
@@ -85,7 +91,12 @@ try:
 except FileNotFoundError:
     app.layout = dbc.Container([
         html.H1("Error: Data File Not Found", className="text-danger"),
-        html.P("'final 1.csv' was not found. Please ensure it's in the same directory.")
+        html.P(f"The file 'final 1.csv' was not found at {DATA_FILE}. Please ensure it's in the same directory as app.py.")
+    ], className="p-5 mt-5 bg-light border rounded")
+except Exception as e:
+    app.layout = dbc.Container([
+        html.H1("An Unexpected Error Occurred", className="text-danger"),
+        html.P(f"Error details: {str(e)}")
     ], className="p-5 mt-5 bg-light border rounded")
 
 # --- 4. Define Callbacks ---
@@ -111,7 +122,7 @@ if 'df' in locals():
             hover_template, colorbar_title = f'<b>%{{location}}</b><br>{indicator}: %{{z:,.2f}}<extra></extra>', indicator
         else:
             prod_df = year_df.groupby('Country')['Production Qty'].sum().reset_index() if selected_mineral == "--- All Minerals ---" else year_df[year_df['Production Mineral'] == selected_mineral].groupby('Country')['Production Qty'].sum().reset_index()
-            import_df = year_df.groupby('Country')['Import Qty'].sum().reset_index() if selected_mineral == "--- All Minerals ---" else year_df[year_df['Import Mineral Name'] == selected_mineral].groupby('Country')['Import Qty'].sum().reset_index()
+            import_df = year_df.groupby('Country')['Import Qty'].sum().reset_index() if selected_mineral == "--- All Minerals ---" else year_df[year_df['Import Mineral Name'] == selected_mineral].groupby('Country')['Import QT'].sum().reset_index()
             merged_df = pd.merge(prod_df, import_df, on='Country', how='outer').fillna(0)
 
             if data_type == 'Production':
@@ -176,9 +187,20 @@ if 'df' in locals():
         if analysis_df.empty:
             return go.Figure().update_layout(title=f"No trade data available for {selected_mineral} in {selected_year}."), "No countries found with production or import data for the selected mineral."
 
-        # 6. Normalize the factor columns (scale to 0-1 range)
-        scaler = MinMaxScaler()
-        analysis_df[factors] = scaler.fit_transform(analysis_df[factors])
+        # 6. Normalize the factor columns (scale to 0-1 range) manually to avoid scikit-learn
+        for col in factors:
+            min_val = analysis_df[col].min()
+            max_val = analysis_df[col].max()
+            range_val = max_val - min_val
+            if range_val > 0:
+                analysis_df[col] = (analysis_df[col] - min_val) / range_val
+            elif min_val == max_val:
+                # All values are the same, set to a neutral value (e.g., 0.5)
+                analysis_df[col] = 0.5
+            else:
+                # Handle cases with NaN or other issues if any (though dropna should have)
+                analysis_df[col] = 0 
+
 
         # 7. Calculate a composite score (equal weighting for simplicity)
         analysis_df['Score'] = analysis_df[factors].mean(axis=1)
@@ -217,3 +239,4 @@ if 'df' in locals():
 # --- 5. Run the App ---
 if __name__ == '__main__':
     app.run(debug=True)
+
