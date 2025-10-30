@@ -1,6 +1,4 @@
 dash
 dash-bootstrap-components
-pandas
-scikit-learn
-plotly
 gunicorn
+pandas
