@@ -13,7 +13,7 @@ app.title = "Global Mineral Dashboard"
 
 # --- 2. Load Data and Define Layout ---
 try:
-    df = pd.read_csv('final 1.csv')
+    df = pd.read_csv('final1.csv')
 
     # --- Data Cleaning and Preparation ---
     df['Year'] = pd.to_numeric(df['Year'], errors='coerce').dropna().astype(int)
