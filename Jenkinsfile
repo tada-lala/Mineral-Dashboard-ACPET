@@ -7,9 +7,16 @@ pipeline {
         stage('Build docker image') {
             steps {  
                 echo "Building Docker image..."
-                sh 'docker build -t tada8102/flaskapp:$BUILD_NUMBER .'
+                sh '''
+                    docker pull tada8102/flaskapp:latest || true
+                    docker build \
+                        --cache-from tada8102/flaskapp:latest \
+                        -t tada8102/flaskapp:$BUILD_NUMBER \
+                        -t tada8102/flaskapp:latest .
+                '''
             }
         }
+
         stage('login to dockerhub') {
             steps {
                 withCredentials([usernamePassword(credentialsId: 'dockerhub-cred', usernameVariable: 'DOCKERHUB_USERNAME', passwordVariable: 'DOCKERHUB_PASSWORD')]) {
