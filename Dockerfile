@@ -18,9 +18,9 @@ COPY app.py .
 COPY "final 1.csv" .
 
 # 6. Expose the port the app runs on (Dash default is 8050)
-EXPOSE 8050
+EXPOSE 8000
 
 # 7. Set the command to run the application using Gunicorn
 #    This is the production-ready way to run a Dash app
 #    It looks for the 'server' variable inside the 'app.py' file
-CMD ["gunicorn", "app:server", "-b", "0.0.0.0:8050"]
+CMD ["gunicorn", "app:server", "-b", "0.0.0.0:8000"]
