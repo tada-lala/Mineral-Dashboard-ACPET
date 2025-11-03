@@ -1,57 +1,47 @@
-// Jenkinsfile
 pipeline {
-    agent any // Assumes the Jenkins agent has Docker installed
-
+    agent any 
+    environment {
+        DOCKERHUB_CREDENTIALS = credentials('dockerhub-cred')
+    }
     stages {
-        stage('Checkout') {
-            steps {
-                // Checkout code from your version control (e.g., Git)
-                checkout scm
+        stage('Build docker image') {
+            steps {  
+                echo "Building Docker image..."
+                sh 'docker build -t tada8102/flaskapp:$BUILD_NUMBER .'
             }
         }
-
-        stage('Run Linter') {
-            // It's good practice to lint your code for style and errors.
-            // We run this inside a temporary Python container for a clean environment.
-            agent {
-                docker { image 'python:3.10-slim' }
-            }
+        stage('login to dockerhub') {
             steps {
-                sh 'pip install flake8'
-                // Run flake8, ignoring common non-critical errors if needed
-                // Example: sh 'flake8 app.py --ignore=E501,W503'
-                sh 'flake8 app.py'
-            }
-        }
-
-        stage('Build Docker Image') {
-            steps {
-                script {
-                    echo "Building the Docker image..."
-                    // Build the image and tag it
-                    sh "docker build -t global-mineral-dashboard:latest ."
+                withCredentials([usernamePassword(credentialsId: 'dockerhub-cred', usernameVariable: 'DOCKERHUB_USERNAME', passwordVariable: 'DOCKERHUB_PASSWORD')]) {
+                    echo "Logging in to Docker Hub..."
+                    sh "docker login -u $DOCKERHUB_USERNAME -p $DOCKERHUB_PASSWORD"
                 }
             }
         }
-
-        stage('Scan Image (Placeholder)') {
-            // In a real pipeline, you would scan the built image
-            // for vulnerabilities here using tools like Trivy, Snyk, or Docker Scout.
+        stage('push image') {
             steps {
-                echo "Skipping vulnerability scan for this example."
-                // Example with Trivy (if installed on agent):
-                // sh "trivy image global-mineral-dashboard:latest"
+                echo "Pushing Docker image to Docker Hub..."
+                sh 'docker push tada8102/flaskapp:$BUILD_NUMBER'
+            }
+        }
+        stage('Deploy to Staging') {
+            steps {
+                // Pull the latest image from Docker Hub
+                sh 'docker pull tada8102/flaskapp:$BUILD_NUMBER'
+
+                // Stop and remove any existing containers
+                sh 'docker stop myapp-container || true'
+                sh 'docker rm myapp-container || true'
+
+                // Run the new container with the latest image
+                sh 'docker run -d --name myapp-container -p 8000:8000 tada8102/flaskapp:$BUILD_NUMBER'
             }
         }
     }
-    
     post {
-        // This block runs after all stages
-        success {
-            echo 'Pipeline finished successfully.'
-        }
-        failure {
-            echo 'Pipeline failed. Check the logs.'
+        always {
+            echo "Logging out from Docker Hub..."
+            sh 'docker logout'
         }
     }
 }
